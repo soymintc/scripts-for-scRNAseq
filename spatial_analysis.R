@@ -8,7 +8,6 @@ library(dplyr)
 library(hdf5r)
 
 setwd('~/local/mouse_sgt_ant1/mouse_brain/')
-dl <- list.dirs(".", full.names = F, recursive=FALSE)
 
 # Use Load10X_Spatial to load data from the following file structure:
 # ├── filtered_feature_bc_matrix
@@ -17,6 +16,12 @@ dl <- list.dirs(".", full.names = F, recursive=FALSE)
 # │   └── matrix.mtx.gz
 # ├── filtered_feature_bc_matrix.h5 
 # └── spatial 
+#     ├── aligned_fiducials.jpg
+#     ├── detected_tissue_image.jpg
+#     ├── scalefactors_json.json # [req] high -> low-res image scaling info
+#     ├── tissue_hires_image.png
+#     ├── tissue_lowres_image.png # [req]
+#     └── tissue_positions_list.csv # [req] the coordinates for each spot 
 brain <- Load10X_Spatial(data.dir="./outs/raw",
                          filename="filtered_feature_bc_matrix.h5",
                          assay='Spatial',
@@ -59,6 +64,13 @@ plot1 + plot2
 all.genes <- rownames(brain)
 brain <- ScaleData(brain, features = all.genes)
 
+# Visualize expression for selected genes
+SpatialFeaturePlot(brain, features = c("Hpca", "Ttr"))
+
+p1 <- SpatialFeaturePlot(brain, features = "Ttr", pt.size.factor = 1)
+p2 <- SpatialFeaturePlot(brain, features = "Ttr", alpha = c(0.1, 1)) # changing transparency
+p1 + p2
+
 # Linear transformation
 brain <- RunPCA(brain, features = VariableFeatures(object = brain)) # only for HVGs
 print(brain[["pca"]], dims = 1:5, nfeatures = 5) # genes per PCs
@@ -66,7 +78,42 @@ VizDimLoadings(brain, dims = 1:2, reduction = "pca") # PC amplitude check per ge
 DimPlot(brain, reduction = "pca") # PCA for PC1 and PC2
 DimHeatmap(brain, dims = 1:15, cells = 500, balanced = TRUE)
 
+# Select significant PCs
+brain <- JackStraw(brain, num.replicate = 100)
+brain <- ScoreJackStraw(brain, dims = 1:20)
+JackStrawPlot(brain, dims = 1:20)
+ElbowPlot(brain) # approximating the "true dimensionality / dim rank" of dataset
 
+# brain <- RunPCA(brain, assay = "SCT", verbose = FALSE)
+# brain <- FindNeighbors(brain, reduction = "pca", dims = 1:30)
+# brain <- FindClusters(brain, verbose = FALSE)
+# brain <- RunUMAP(brain, reduction = "pca", dims = 1:30)
 
-# Visualize expression for selected genes
-SpatialFeaturePlot(brain, features = c("Hpca", "Ttr"))
+# Graph construction & Bottom->up Clustering
+brain <- FindNeighbors(brain, dims = 1:20) # Jaccard similarity: |A,B|/|AvB|
+brain <- FindClusters(brain, resolution = 0.5) # iteratively grouping genes hierarchially
+print(head(Idents(brain), 5))
+
+# Run UMAP
+brain <- RunUMAP(brain, dims = 1:20)
+p1 <- DimPlot(brain, reduction = "umap", label = TRUE)
+p2 <- SpatialDimPlot(brain, label = TRUE, label.size = 3)
+p1 + p2
+
+# Interactive plot examples
+SpatialDimPlot(brain, cells.highlight = 
+                 CellsByIdentities(object = brain, 
+                                   idents = c(2, 1, 4, 3, 5, 8)), 
+               facet.highlight = TRUE, ncol = 3)
+
+SpatialDimPlot(brain, interactive = TRUE)
+
+SpatialFeaturePlot(brain, features = "Ttr", interactive = TRUE)
+
+LinkedDimPlot(brain)
+
+# Find DEGs (only based on inter-cell expression) -> Spatial plot of expressions
+de_markers <- FindMarkers(brain, ident.1 = 5, ident.2 = 6)
+SpatialFeaturePlot(object = brain, 
+                   features = rownames(de_markers)[1:3], 
+                   alpha = c(0.1, 1), ncol = 3)
