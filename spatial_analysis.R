@@ -121,6 +121,9 @@ brain <- RunUMAP(brain, reduction = "pca", dims = 1:30)
 
 # Plot UMAP, 2 plots grouped by ident and given ident
 DimPlot(brain, reduction = "umap", group.by = c("ident", "orig.ident"))
+SpatialDimPlot(brain) # cluster plot on low-res image
+SpatialDimPlot(brain, cells.highlight = CellsByIdentities(brain), 
+               facet.highlight = TRUE, ncol = 5) # 5-col spatial plot
 
 # ----------
 # # small test to visualize 2 genes
