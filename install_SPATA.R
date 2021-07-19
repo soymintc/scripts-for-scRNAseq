@@ -1,5 +1,6 @@
 # sudo apt-get install libfftw3-dev libfftw3-doc # bash
-
+# sudo apt-get install r-base-dev libcurl4-openssl-dev libxml2-dev libssl-dev libmagick++-6.q16-dev
+# sudo apt install -y libproj-dev
 
 base::install.packages("devtools")
 
